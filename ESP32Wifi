@@ -1,0 +1,104 @@
+//SERVER
+#include <WiFi.h>
+
+const char* ssid = "sharath";     
+const char* password = "12345678";  
+
+WiFiServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  delay(10);
+
+  Serial.println();
+  Serial.println("Connecting to WiFi...");
+  
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
+}
+
+void loop() {
+  WiFiClient client = server.available(); 
+  
+  if (client) {
+    Serial.println("New Client connected");
+    String receivedData = "";  
+
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        receivedData += c;
+      }
+    }
+
+    if (receivedData.length() > 0) {
+      Serial.println("Received Data: " + receivedData);  
+    }
+
+    client.stop();
+    Serial.println("Client disconnected");
+  }
+}
+
+//CLIENT
+#include <WiFi.h>
+
+const char* ssid = "sharath";     
+const char* password = "12345678";  
+
+const char* serverIP = "192.168.94.142"; 
+const int serverPort = 80;
+
+const int sensorPin = 34;  
+
+WiFiClient client;
+
+void setup() {
+  Serial.begin(115200);
+  delay(10);
+  
+  pinMode(sensorPin, INPUT);
+  
+  Serial.println();
+  Serial.println("Connecting to WiFi...");
+  
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  int soilMoistureValue = analogRead(sensorPin);
+  Serial.print("Soil Moisture Value: ");
+  Serial.println(soilMoistureValue);
+
+  if (client.connect(serverIP, serverPort)) {
+    Serial.println("Connected to server");
+    client.print(String(soilMoistureValue));
+    client.println(); 
+    client.stop();
+  } else {
+    Serial.println("Connection to server failed");
+  }
+  
+  delay(2000);
+}
