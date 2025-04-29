@@ -1,0 +1,149 @@
+import { useState, useEffect } from 'react';
+import { Cloud, Sun, Droplet, Wind } from 'lucide-react';
+import { ref, onValue } from 'firebase/database'; //Realtime Database
+import { database } from './firebase'; //Firebase configuration
+
+type NodeData = {
+  id: number;
+  moisture: number;
+};
+
+export default function Component() {
+  const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [weather, setWeather] = useState({
+    temperature: 22,
+    condition: 'Sunny',
+    humidity: 60,
+    windSpeed: 5,
+  });
+
+  useEffect(() => {
+    //Real-time weather data (from OpenWeather API)
+    const fetchWeather = async () => {
+      try {
+        const response = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=Warangal&appid=YOUR_API_KEY&units=metric`
+        );
+        const data = await response.json();
+
+        setWeather({
+          temperature: data.main.temp,
+          condition: data.weather[0].main,
+          humidity: data.main.humidity,
+          windSpeed: data.wind.speed,
+        });
+      } catch (error) {
+        console.error('Error fetching weather data:', error);
+      }
+    };
+
+    fetchWeather();
+
+    // Sensor data from Firebase
+    const nodesRef = ref(database, 'sensorData'); 
+    onValue(nodesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const nodesArray = Object.keys(data).map((key, index) => ({
+          id: index,
+          moisture: data[key].soilMoisture, 
+        }));
+        setNodes(nodesArray);
+      }
+    });
+
+    return () => {
+      // Cleanup logic here (if necessary)
+    };
+  }, []);
+
+  const getMoistureColor = (moisture) => {
+    return moisture < 18 ? '#ef4444' : '#22c55e'; // Red if less than 60, green otherwise
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100">
+      {/* Left Section: Moisture Levels */}
+      <div className="flex-1 p-4">
+        <h2 className="text-2xl font-bold mb-4">Farmland Moisture Levels</h2>
+        <div className="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+          <svg width="440" height="440" className="mx-auto">
+            {nodes.map((node, index) => {
+              const row = Math.floor(index / 5); // 5 nodes per row
+              const col = index % 5; // Column index
+              return (
+                <g key={node.id}>
+                  <circle
+                    cx={(col + 1) * 80}
+                    cy={(row + 1) * 80}
+                    r="30"
+                    fill={getMoistureColor(node.moisture)}
+                    className="transition-all duration-500 ease-in-out hover:r-32"
+                  />
+                  <text
+                    x={(col + 1) * 80}
+                    y={(row + 1) * 80}
+                    textAnchor="middle"
+                    dy=".3em"
+                    fill="white"
+                    fontSize="12"
+                    fontWeight="bold"
+                  >
+                    {Math.round(node.moisture)}%
+                  </text>
+                  <text
+                    x={(col + 1) * 80}
+                    y={(row + 1) * 80 + 15}
+                    textAnchor="middle"
+                    dy=".3em"
+                    fill="white"
+                    fontSize="12"
+                    fontWeight="bold"
+                  >
+                    {node.id}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          <div className="mt-8 flex justify-center space-x-6">
+            <div className="flex items-center">
+              <div className="w-6 h-6 rounded-full bg-red-500 mr-2"></div>
+              <span className="text-sm">Needs Attention (&lt;40% or &gt;80%)</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-6 h-6 rounded-full bg-green-500 mr-2"></div>
+              <span className="text-sm">Optimal (40% - 80%)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Section: Weather Information */}
+      <div className="flex-1 p-4">
+        <h2 className="text-2xl font-bold mb-4">Weather Information</h2>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between mb-6">
+            <div className="text-6xl font-bold">{weather.temperature}°C</div>
+            {weather.condition === 'Sunny' ? (
+              <Sun size={64} className="text-yellow-500" />
+            ) : (
+              <Cloud size={64} className="text-gray-500" />
+            )}
+          </div>
+          <div className="text-2xl mb-4">{weather.condition}</div>
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <Droplet className="mr-2" />
+              <span>Humidity: {weather.humidity}%</span>
+            </div>
+            <div className="flex items-center">
+              <Wind className="mr-2" />
+              <span>Wind Speed: {weather.windSpeed} m/s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
